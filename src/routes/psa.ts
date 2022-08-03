@@ -4,12 +4,6 @@
  */
 import * as express from 'express';
 import {query, body, param} from 'express-validator';
-import {
-  PinObjectsQuery,
-  PinResults,
-  PinStatus,
-  Pin,
-} from '../models/PinObjects';
 import {Failure} from '../models/Failure';
 const pinObjectDao = require('../dao/pinObjectDao');
 const validate = require('../middlewares/validate/validationHandler');
@@ -20,6 +14,7 @@ const {
 } = require('./../common/commonUtils');
 import {pinByCid, replacePin} from '../service/pinning';
 import {logger} from '../logger';
+import {Pin, PinObjectsQuery, PinResults, PinStatus} from "../types/pinObjects";
 const _ = require('lodash');
 export const router = express.Router();
 router.get(

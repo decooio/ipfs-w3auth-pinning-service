@@ -4,7 +4,7 @@ const _ = require('lodash');
 export const configs = {
   db: {
     host: getEnv('MYSQL_HOST', 'localhost'),
-    port: _.parseInt(getEnv('MYSQL_PORT', 3306)),
+    port: _.parseInt(getEnv('MYSQL_PORT', 23306)),
     db: getEnv('MYSQL_DB', 'pinning_service'),
     user: getEnv('MYSQL_USER', 'root'),
     password: getEnv('MYSQL_PASSWORD', 'root'),
@@ -15,6 +15,11 @@ export const configs = {
   },
   ipfs: {
     delegates: [] as string[],
+    hostLocal: getEnv('IPFS_HOST_LOCAL', 'http://localhost:5001'),
+    hostThunder: getEnv('IPFS_HOST_THUNDER', 'http://localhost:5001'),
+    ipfsPinAddTimeOut: getEnv('IPFS_PIN_ADD_TIMEOUT', 1000 * 60 * 60 * 1),
+    addBatchThreadSize: _.parseInt(getEnv('PIN_ADD_THREAD_SIZE', 5)),
+    addRetryTimes: _.parseInt(getEnv('IPFS_PIN_ADD_RETRY_TIMES', 3)),
   },
   evolution: {
     schema_table: 'data_migrations',
@@ -27,7 +32,8 @@ export const configs = {
     tips: getEnv('CRUST_TIPS', 0),
     validFileSize: _.parseInt(getEnv('VALID_FILE_REPLICAS', 30)),
     orderTimeAwait: _.parseInt(getEnv('ORDER_TIME_AWAIT', 3000)),
-    loopTimeAwait: _.parseInt(getEnv('LOOP_TIME_AWAIT', 20000)),
+    orderFailedTimeAwait: _.parseInt(getEnv('ORDER_FAILED_TIME_AWAIT', 60000)),
+    loopTimeAwait: _.parseInt(getEnv('LOOP_TIME_AWAIT', 2000)),
     checkAmountTimeAwait: _.parseInt(getEnv('CHECK_AMOUNT_TIME_AWAIT', 120000)),
     checkAmountRetryTimes: _.parseInt(getEnv('CHECK_AMOUNT_RETRY_TIMES', 3)),
     orderRetryTimes: _.parseInt(getEnv('ORDER_RETRY_TIMES', 3)),
@@ -37,6 +43,10 @@ export const configs = {
       ''
     ),
     transactionTimeout: _.parseInt(getEnv('TRANSACTION_TIMEOUT', 60 * 1000)),
+  },
+  dingtalk: {
+    notificationUrl: getEnv('WARNING_URL', ''),
+    notificationSecret: getEnv('WARNING_SECRET', ''),
   },
   server: {
     port: 3000,

@@ -19,19 +19,45 @@ export function parserStrToObj(str: any) {
   }
 }
 
-export const TextMatchingStrategy = {
-  exact: 'exact',
-  iexact: 'iexact',
-  partial: 'partial',
-  ipartial: 'ipartial',
+export enum TextMatchingStrategy {
+  exact = 'exact',
+  iexact = 'iexact',
+  partial =  'partial',
+  ipartial = 'ipartial',
 };
 
-export const PinObjectStatus = {
-  queued: 'queued',
-  pinning: 'pinning',
-  pinned: 'pinned',
-  failed: 'failed',
+export type PinCommonStatus = 'queued' | 'pinning' | 'pinned' | 'failed';
+
+export enum PinObjectStatus {
+  queued = 'queued',
+  pinning = 'pinning',
+  pinned = 'pinned',
+  failed = 'failed',
 };
+
+export enum PinFilePinStatus {
+  queued = 0,
+  pinning,
+  pinned,
+  failed
+}
+
+export enum PinFileLocalPinStatus {
+  unpin = 0,
+  pinning = 1,
+  pinned,
+  failed,
+}
+
+export enum PinFileThunderPinStatus {
+  unpin = 0,
+  pinned
+}
+
+export const Deleted = {
+  undeleted: 0,
+  deleted: 1,
+}
 
 export const isDate = (value: string): boolean => {
   return moment(value).isValid();

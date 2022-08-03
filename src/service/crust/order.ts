@@ -6,6 +6,7 @@ import { logger } from '../../logger';
 import BigNumber from 'bignumber.js';
 import { sleep } from '../../common/commonUtils';
 import createKeyring from './krp';
+import {sendMarkdown} from "../../common/dingtalkUtils";
 const ChatBot = require('dingtalk-robot-sender');
 const robot = new ChatBot({
   webhook: `https://oapi.dingtalk.com/robot/send?access_token=${configs.crust.warningAccessToken}`,
@@ -25,13 +26,10 @@ async function checkingAccountBalance(api: ApiPromise): Promise<boolean> {
     logger.error(
       `orderBalance: ${orderBalance.toFixed(5)} min: ${minimumAmount}`
     );
-    sendCrustOrderWarningMsg(
-      'crust-pinner balance warning',
-      `### crust-pinner(${configs.server.name}) \n address: ${krp.address
-      } \n current balance: ${orderBalance
+    await sendMarkdown('baitech-pinner balance warning',
+        `### baitech-pinner(${configs.server.name}) \n address: ${krp.address } \n current balance: ${orderBalance
         .dividedBy(1_000_000_000_000)
-        .toString()}cru, min balance: ${minimumAmount}cru`
-    );
+        .toString()}cru, min balance: ${minimumAmount}cru`);
   } catch (e) {
     logger.warn(`check account balance failed: ${e.message}`);
   }

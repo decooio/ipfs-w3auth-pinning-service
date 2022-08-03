@@ -1,0 +1,20 @@
+CREATE TABLE `pin_file` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `cid` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `pin_status` tinyint NOT NULL DEFAULT '0' COMMENT '0: queued, 1: pinning, 2: pinned, 3: failed',
+  `order_retry_times` tinyint NOT NULL DEFAULT '0' COMMENT 'order retry times',
+  `local_pin_status` tinyint NOT NULL COMMENT '0: unpin, 1: pinning, 2:pinned, 3: failed',
+  `local_pin_retry_times` tinyint NOT NULL DEFAULT '0' COMMENT 'local pin retry times',
+  `thunder_pin_status` tinyint NOT NULL DEFAULT '0' COMMENT '0: unpin, 1: pinned',
+  `file_size` bigint NOT NULL DEFAULT '0',
+  `calculated_at` bigint NOT NULL DEFAULT '0',
+  `expired_at` bigint NOT NULL DEFAULT '0',
+  `replica_count` int NOT NULL DEFAULT '0',
+  `deleted` tinyint NOT NULL DEFAULT '0' COMMENT '0: undeleted, 1: deleted',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_pin_file_cid` (`cid`) USING BTREE,
+  KEY `idx_pin_file_deleted_pin_status` (`deleted`,`pin_status`) USING BTREE,
+  KEY `idx_pin_file_local_pin_status` (`deleted`,`local_pin_status`) USING BTREE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

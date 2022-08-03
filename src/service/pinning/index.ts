@@ -1,5 +1,11 @@
-import {Pin, PinStatus, PinObjects} from '../../models/PinObjects';
-import {uuid, PinObjectStatus, fromDecimal} from '../../common/commonUtils';
+import {PinObjects} from '../../models/PinObjects';
+import {
+  uuid,
+  fromDecimal,
+  Deleted,
+  PinFilePinStatus,
+  PinFileLocalPinStatus, PinFileThunderPinStatus
+} from '../../common/commonUtils';
 import {configs} from '../../config/config';
 import {
   placeOrder,
@@ -8,13 +14,19 @@ import {
   sendCrustOrderWarningMsg,
   sendTx,
 } from '../crust/order';
-import {api} from '../crust/api';
 import createKeyring from '../crust/krp';
 const commonDao = require('../../dao/commonDao');
 const moment = require('moment');
 const _ = require('lodash');
 import {logger} from '../../logger';
 import {timeoutOrError} from '../../common/promise-utils';
+import {PinFile} from "../../models/PinFile";
+import {sequelize} from "../../db/db";
+import {Transaction} from "sequelize";
+import {Pin, PinStatus} from "../../types/pinObjects";
+import {ApiPromise, WsProvider} from "@polkadot/api";
+import {typesBundleForPolkadot} from "@crustio/type-definitions";
+import {sendMarkdown} from "../../common/dingtalkUtils";
 const Sequelize = require('sequelize');
 const {sleep} = require('../../common/commonUtils');
 const pinObjectDao = require('../../dao/pinObjectDao');
@@ -33,34 +45,67 @@ export async function pinByCid(userId: number, pin: Pin): Promise<PinStatus> {
   let pinObjects = await PinObjects.findOne({
     where: {user_id: userId, cid: pin.cid},
   });
-  if (_.isEmpty(pinObjects)) {
-    const obj = {
-      name: pin.name ? pin.name : pin.cid,
-      request_id: uuid(),
-      user_id: userId,
-      cid: pin.cid,
-      status: PinObjectStatus.queued,
-      meta: pin.meta,
-      origins: [...pin.origins].join(','),
-      delegates: configs.ipfs.delegates.join(','),
-    };
-    logger.info(`obj: ${JSON.stringify(obj)}`);
-    pinObjects = await PinObjects.create(obj);
-  } else {
-    pinObjects.request_id = uuid();
-    pinObjects.update_time = moment().format('YYYY-MM-DD HH:mm:ss');
-    pinObjects.status = PinObjectStatus.queued;
-    pinObjects.meta = pin.meta;
-    pinObjects.origins = [...pin.origins].join(',');
-    pinObjects.delegates = configs.ipfs.delegates.join(',');
-    pinObjects.retry_times = 0;
-    pinObjects.deleted = 0;
-    await pinObjects.save();
-  }
-  return PinStatus.parseBaseData(pinObjects);
+  const pinFile = await PinFile.findOne({
+    where: {
+      cid: pin.cid
+    }
+  });
+  const obj = {
+    name: pin.name ? pin.name : pin.cid,
+    request_id: uuid(),
+    user_id: userId,
+    cid: pin.cid,
+    meta: pin.meta,
+    origins: [...pin.origins].join(','),
+    delegates: configs.ipfs.delegates.join(','),
+    deleted: Deleted.undeleted,
+    update_time: moment().format('YYYY-MM-DD HH:mm:ss')
+  };
+  const pinFileObj = {
+    cid: pin.cid,
+    pin_status: PinFilePinStatus.queued,
+    order_retry_times: 0,
+    local_pin_status: PinFileLocalPinStatus.unpin,
+    local_pin_retry_times: 0,
+    thunder_pin_status: PinFileLocalPinStatus.unpin,
+    deleted: Deleted.undeleted,
+    update_time: moment().format('YYYY-MM-DD HH:mm:ss')
+  };
+  const pinStatus = (_.isEmpty(pinFile) || pinFile.deleted === Deleted.deleted) ? PinFilePinStatus.queued : pinFile.pin_status;
+  await sequelize.transaction(async (transaction: Transaction) => {
+    if (_.isEmpty(pinFile)) {
+      await PinFile.create(pinFileObj, {transaction})
+    } else if (pinFile.deleted === Deleted.deleted){
+      await PinFile.update(pinFileObj, {
+        where: {
+          id: pinFile.id
+        },
+        transaction
+      })
+    }
+    if (_.isEmpty(pinObjects)) {
+      pinObjects = await PinObjects.create(obj, {transaction});
+    } else {
+      await PinObjects.update(obj, {
+        where: {
+          id: pinObjects.id
+        },
+        transaction
+      })
+    }
+  })
+  return PinStatus.parseBaseData({
+    ...pinObjects,
+    ...obj,
+    status: pinStatus
+  });
 }
 
 export async function orderStart() {
+  const api = new ApiPromise({
+    provider: new WsProvider(configs.crust.chainWsUrl),
+    typesBundle: typesBundleForPolkadot,
+  });
   for (;;) {
     try {
       const checkAccount = await checkAccountBalanceAndWarning(api);
@@ -74,10 +119,7 @@ export async function orderStart() {
       await sleep(configs.crust.loopTimeAwait);
     } catch (e) {
       logger.error(`place order loop error: ${e.message}`);
-      sendCrustOrderWarningMsg(
-        `crust-pinner(${configs.server.name}) error`,
-        `### crust-pinner(${configs.server.name}) error \n err msg: ${e.message}`
-      );
+      await sendMarkdown(`Baitech pinner (${configs.server.name}) error`, `### crust-pinner(${configs.server.name}) error \n err msg: ${e.message}`);
       await sleep(configs.crust.loopTimeAwait);
     }
   }
@@ -85,51 +127,45 @@ export async function orderStart() {
 
 async function placeOrderQueuedFiles() {
   logger.info('start placeOrderQueuedFiles');
-  const pinObjects = await PinObjects.findAll({
+  const pinFiles = await PinFile.findAll({
     where: {
       deleted: 0,
       [Op.or]: [
-        {status: PinObjectStatus.failed},
-        {status: PinObjectStatus.queued},
+        {pin_status: PinFilePinStatus.failed},
+        {pin_status: PinFilePinStatus.queued},
       ],
-      retry_times: {
+      order_retry_times: {
         [Op.lt]: configs.crust.orderRetryTimes,
       },
     },
     order: [['update_time', 'asc']],
+    limit: 1000
   });
-  // distinct by cid
-  if (_.isEmpty(pinObjects)) {
-    logger.info('not pin objects to order');
+  if (_.isEmpty(pinFiles)) {
+    logger.info('not pin files to order');
     return;
   }
-  const cidRetryGroup = _(pinObjects)
-    .groupBy((i: any) => i.cid)
-    .toPairs()
-    .map((i: any) => _.maxBy(i[1], 'retry_times'))
-    .groupBy((i: any) => i.cid)
-    .value();
-  for (const cid of _.map(cidRetryGroup, (i: any, j: any) => j)) {
-    const needToOrder = await needOrder(cid, cidRetryGroup[cid][0].retry_times);
-    if (needToOrder.needOrder) {
-      await placeOrderInCrust(cid, needToOrder.retryTimes).catch(e => {
-        logger.error(`order error catch: ${JSON.stringify(e)} cid: ${cid}`);
-      });
-      await sleep(configs.crust.orderTimeAwait);
+  for (const file of pinFiles) {
+    const cid = file.cid;
+    const order = file.order_retry_times < configs.crust.orderRetryTimes;
+    const orderState = order ? PinFilePinStatus.pinning : PinFilePinStatus.failed;
+    if (order) {
+      try {
+        await placeOrderInCrust(cid, file.order_retry_times);
+        await sleep(configs.crust.orderTimeAwait);
+      } catch (e) {
+        logger.error(`order error catch: ${e.stack} cid: ${cid}`);
+        await sendMarkdown(`Baitech order (${configs.server.name}) failed`, `Place order in crust failed cid(${cid}): ${e.message}`);
+        await sleep(configs.crust.orderFailedTimeAwait)
+      }
     } else {
-      await PinObjects.update(
+      await PinFile.update(
         {
-          status: needToOrder.status,
-          retry_times: needToOrder.retryTimes,
+          pin_status: orderState,
         },
         {
           where: {
-            deleted: 0,
-            cid: cid,
-            [Op.or]: [
-              {status: PinObjectStatus.failed},
-              {status: PinObjectStatus.queued},
-            ],
+            id: file.id,
           },
         }
       );
@@ -137,27 +173,12 @@ async function placeOrderQueuedFiles() {
   }
 }
 
-async function needOrder(
-  cid: string,
-  retryTimes: number
-): Promise<PinObjectState> {
-  const result = new PinObjectState();
-  result.needOrder = retryTimes <= configs.crust.orderRetryTimes;
-  result.retryTimes = retryTimes;
-  result.status = !result.needOrder
-    ? PinObjectStatus.failed.toString()
-    : PinObjectStatus.pinning.toString();
-  return result;
-}
-
-class PinObjectState {
-  needOrder = false;
-  retryTimes = 0;
-  status: string;
-}
-
 async function placeOrderInCrust(cid: string, retryTimes = 0) {
-  let pinStatus = PinObjectStatus.pinning;
+  const api = new ApiPromise({
+    provider: new WsProvider(configs.crust.chainWsUrl),
+    typesBundle: typesBundleForPolkadot,
+  });
+  let pinStatus = PinFilePinStatus.pinning;
   let retryTimeAdd = false;
   try {
     const fileCid = cid;
@@ -166,7 +187,7 @@ async function placeOrderInCrust(cid: string, retryTimes = 0) {
     const tips = configs.crust.tips;
     const krp = createKeyring(seeds);
     logger.info(`order cid: ${cid} in crust`);
-    pinStatus = PinObjectStatus.pinning;
+    pinStatus = PinFilePinStatus.pinning;
     const res = await timeoutOrError(
       'Crust place order',
       placeOrder(
@@ -181,40 +202,38 @@ async function placeOrderInCrust(cid: string, retryTimes = 0) {
     );
     if (!res) {
       retryTimeAdd = true;
-      pinStatus = PinObjectStatus.failed;
+      pinStatus = PinFilePinStatus.failed;
       logger.error(`order cid: ${cid} failed result is empty`);
     }
   } catch (e) {
-    pinStatus = PinObjectStatus.failed;
+    pinStatus = PinFilePinStatus.failed;
     retryTimeAdd = true;
     logger.error(`order cid: ${cid} failed error: ${e.toString()}`);
   } finally {
     const times =
-      retryTimeAdd && retryTimes <= configs.crust.orderRetryTimes
+      retryTimeAdd && retryTimes < configs.crust.orderRetryTimes
         ? retryTimes + 1
         : retryTimes;
-    await PinObjects.update(
+    await PinFile.update(
       {
-        status: pinStatus,
-        retry_times: times,
+        pin_status: pinStatus,
+        order_retry_times: times,
       },
       {
         where: {
-          deleted: 0,
           cid: cid,
-          [Op.or]: [
-            {status: PinObjectStatus.failed},
-            {status: PinObjectStatus.queued},
-          ],
         },
-      }
-    );
+      });
   }
 }
 
 export async function updatePinObjectStatus() {
-  const pinningObjects = await PinObjects.findAll({
-    where: {status: PinObjectStatus.pinning, deleted: 0},
+  const api = new ApiPromise({
+    provider: new WsProvider(configs.crust.chainWsUrl),
+    typesBundle: typesBundleForPolkadot,
+  });
+  const pinningObjects = await PinFile.findAll({
+    where: {pin_status: PinFilePinStatus.pinning, deleted: 0},
   });
   if (!_.isEmpty(pinningObjects)) {
     for (const obj of pinningObjects) {
@@ -225,14 +244,19 @@ export async function updatePinObjectStatus() {
             res.meaningfulData.reported_replica_count >=
             configs.crust.validFileSize
           ) {
-            obj.status = PinObjectStatus.pinned;
+            obj.pin_status = PinFilePinStatus.pinned;
+            obj.file_size = res.meaningfulData.file_size;
+            obj.calculated_at = res.meaningfulData.calculated_at;
+            obj.expired_at = res.meaningfulData.expired_at;
+            obj.replica_count = res.meaningfulData.reported_replica_count;
           } else {
-            obj.status = PinObjectStatus.pinning;
+            obj.pin_status = PinFilePinStatus.pinning;
           }
         } else {
           // invalid file size
           obj.deleted = 1;
-          obj.status = PinObjectStatus.failed;
+          obj.pin_status = PinFilePinStatus.failed;
+          await sendMarkdown(`Baitech order (${configs.server.name}) failed`, `Can not query pinning file cid(${obj.cid}) from crust chain please check!`);
         }
         await obj.save();
       } catch (e) {

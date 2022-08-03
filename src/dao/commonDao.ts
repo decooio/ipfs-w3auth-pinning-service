@@ -1,3 +1,5 @@
+import {Transaction} from "sequelize";
+
 const _ = require('lodash');
 import {sequelize} from '../db/db';
 import {logger} from '../logger';
@@ -52,11 +54,12 @@ function queryForObj(sql: string, replace: any[]): Promise<any> {
     });
 }
 
-function queryForUpdate(sql: string, replace: any[]): Promise<number> {
+function queryForUpdate(sql: string, replace: any[], transaction?: Transaction): Promise<number> {
   return sequelize
     .query(sql, {
       replacements: replace,
       type: sequelize.QueryTypes.UPDATE,
+      transaction
     })
     .then((r: any) => {
       logger.info(r);
