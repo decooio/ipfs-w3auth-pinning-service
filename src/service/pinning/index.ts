@@ -68,11 +68,12 @@ export async function pinByCid(userId: number, pin: Pin): Promise<PinStatus> {
     deleted: Deleted.undeleted,
     update_time: moment().format('YYYY-MM-DD HH:mm:ss')
   };
-  const pinStatus = (_.isEmpty(pinFile) || pinFile.deleted === Deleted.deleted) ? PinFilePinStatus.queued : pinFile.pin_status;
+  const resetPinFile = pinFile.deleted === Deleted.deleted || pinFile.pin_status === PinFilePinStatus.failed;
+  const pinStatus = (_.isEmpty(pinFile) || resetPinFile) ? PinFilePinStatus.queued : pinFile.pin_status;
   await sequelize.transaction(async (transaction: Transaction) => {
     if (_.isEmpty(pinFile)) {
       await PinFile.create(pinFileObj, {transaction})
-    } else if (pinFile.deleted === Deleted.deleted){
+    } else if (resetPinFile){
       await PinFile.update(pinFileObj, {
         where: {
           id: pinFile.id
