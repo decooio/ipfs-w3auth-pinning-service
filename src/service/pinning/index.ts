@@ -4,18 +4,15 @@ import {
   fromDecimal,
   Deleted,
   PinFilePinStatus,
-  PinFileLocalPinStatus, PinFileThunderPinStatus
+  PinFileLocalPinStatus
 } from '../../common/commonUtils';
 import {configs} from '../../config/config';
 import {
   placeOrder,
   getOrderState,
   checkAccountBalanceAndWarning,
-  sendCrustOrderWarningMsg,
-  sendTx,
 } from '../crust/order';
 import createKeyring from '../crust/krp';
-const commonDao = require('../../dao/commonDao');
 const moment = require('moment');
 const _ = require('lodash');
 import {logger} from '../../logger';

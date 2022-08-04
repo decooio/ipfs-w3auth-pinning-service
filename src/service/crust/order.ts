@@ -7,10 +7,6 @@ import BigNumber from 'bignumber.js';
 import { sleep } from '../../common/commonUtils';
 import createKeyring from './krp';
 import {sendMarkdown} from "../../common/dingtalkUtils";
-const ChatBot = require('dingtalk-robot-sender');
-const robot = new ChatBot({
-  webhook: `https://oapi.dingtalk.com/robot/send?access_token=${configs.crust.warningAccessToken}`,
-});
 
 async function checkingAccountBalance(api: ApiPromise): Promise<boolean> {
   try {
@@ -50,16 +46,6 @@ export async function checkAccountBalanceAndWarning(
   return false;
 }
 
-export function sendCrustOrderWarningMsg(title: string, text: string) {
-  const textContent = {
-    actionCard: {
-      title: title,
-      text: text,
-    },
-    msgtype: 'actionCard',
-  };
-  robot.send(textContent);
-}
 
 export async function getAccountBalance(
   api: ApiPromise,

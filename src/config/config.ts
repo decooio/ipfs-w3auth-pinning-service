@@ -17,7 +17,7 @@ export const configs = {
     delegates: [] as string[],
     hostLocal: getEnv('IPFS_HOST_LOCAL', 'http://localhost:5001'),
     hostThunder: getEnv('IPFS_HOST_THUNDER', 'http://localhost:5001'),
-    ipfsPinAddTimeOut: getEnv('IPFS_PIN_ADD_TIMEOUT', 1000 * 60 * 60 * 1),
+    ipfsPinAddTimeOut: _.parseInt(getEnv('IPFS_PIN_ADD_TIMEOUT', 1000 * 60 * 60 * 1)),
     addBatchThreadSize: _.parseInt(getEnv('PIN_ADD_THREAD_SIZE', 5)),
     addRetryTimes: _.parseInt(getEnv('IPFS_PIN_ADD_RETRY_TIMES', 3)),
   },
@@ -38,10 +38,6 @@ export const configs = {
     checkAmountRetryTimes: _.parseInt(getEnv('CHECK_AMOUNT_RETRY_TIMES', 3)),
     orderRetryTimes: _.parseInt(getEnv('ORDER_RETRY_TIMES', 3)),
     minimumAmount: _.parseInt(getEnv('MINIMUM_AMOUNT', 1)),
-    warningAccessToken: getEnv(
-      'WARNING_ACCESSTOKEN',
-      ''
-    ),
     transactionTimeout: _.parseInt(getEnv('TRANSACTION_TIMEOUT', 60 * 1000)),
   },
   dingtalk: {
