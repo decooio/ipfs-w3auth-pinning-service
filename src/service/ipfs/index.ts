@@ -50,10 +50,11 @@ export async function pinFilesToLocal() {
                 const thunderPinStat = await pinLs(ipfsThunderHost, pinFile.cid);
                 // Pin add
                 const addResult = await pinAdd(ipfsLocalHost, pinFile.cid);
-                const localPinStatus = _.isEmpty(addResult) ? ((pinFile.local_pin_retry_times + 1) > configs.ipfs.addRetryTimes ? PinFileLocalPinStatus.unpin : PinFileLocalPinStatus.failed) : PinFileLocalPinStatus.pinned;
+                const pinRetryTimes = pinFile.local_pin_retry_times + 1;
+                const localPinStatus = _.isEmpty(addResult) ? (pinRetryTimes > configs.ipfs.addRetryTimes ? PinFileLocalPinStatus.failed : PinFileLocalPinStatus.unpin) : PinFileLocalPinStatus.pinned;
                 await PinFile.update({
                     local_pin_status: localPinStatus,
-                    local_pin_retry_times: _.isEmpty(addResult) ? (pinFile.local_pin_retry_times + 1) : pinFile.local_pin_retry_times,
+                    local_pin_retry_times: _.isEmpty(addResult) ? pinRetryTimes : pinFile.local_pin_retry_times,
                     thunder_pin_status: _.isEmpty(thunderPinStat) ? PinFileThunderPinStatus.unpin : PinFileThunderPinStatus.pinned
                 },{
                     where: {

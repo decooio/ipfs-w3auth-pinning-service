@@ -2,6 +2,7 @@ const {getEnv} = require('../common/commonUtils');
 const _ = require('lodash');
 
 export const configs = {
+  isDev: getEnv('NODE_ENV', 'dev').indexOf('prod') < 0,
   db: {
     host: getEnv('MYSQL_HOST', 'localhost'),
     port: _.parseInt(getEnv('MYSQL_PORT', 23306)),
