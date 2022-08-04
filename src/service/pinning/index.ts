@@ -104,6 +104,7 @@ export async function orderStart() {
     provider: new WsProvider(configs.crust.chainWsUrl),
     typesBundle: typesBundleForPolkadot,
   });
+  let loopTimeAwait = configs.crust.loopTimeAwait;
   for (;;) {
     try {
       const checkAccount = await checkAccountBalanceAndWarning(api);
@@ -111,10 +112,11 @@ export async function orderStart() {
         await sleep(configs.crust.loopTimeAwait);
         continue;
       }
-      await placeOrderQueuedFiles().catch(e => {
+      const hasFileToSave = await placeOrderQueuedFiles().catch(e => {
         logger.error(`place order queued files failed: ${e.message}`);
       });
-      await sleep(configs.crust.loopTimeAwait);
+      loopTimeAwait = hasFileToSave ? configs.crust.loopTimeAwait : (loopTimeAwait + configs.crust.loopTimeAwait);
+      await sleep(_.min([loopTimeAwait, 1000 * 60 * 2]));
     } catch (e) {
       logger.error(`place order loop error: ${e.message}`);
       await sendMarkdown(`Baitech pinner (${configs.server.name}) error`, `### crust-pinner(${configs.server.name}) error \n err msg: ${e.message}`);
@@ -123,7 +125,7 @@ export async function orderStart() {
   }
 }
 
-async function placeOrderQueuedFiles() {
+async function placeOrderQueuedFiles(): Promise<boolean> {
   logger.info('start placeOrderQueuedFiles');
   const pinFiles = await PinFile.findAll({
     where: {
@@ -141,13 +143,11 @@ async function placeOrderQueuedFiles() {
   });
   if (_.isEmpty(pinFiles)) {
     logger.info('not pin files to order');
-    return;
+    return false;
   }
   for (const file of pinFiles) {
     const cid = file.cid;
-    const order = file.order_retry_times < configs.crust.orderRetryTimes;
-    const orderState = order ? PinFilePinStatus.pinning : PinFilePinStatus.failed;
-    if (order) {
+    if (file.order_retry_times < configs.crust.orderRetryTimes) {
       try {
         await placeOrderInCrust(cid, file.order_retry_times);
         await sleep(configs.crust.orderTimeAwait);
@@ -159,7 +159,7 @@ async function placeOrderQueuedFiles() {
     } else {
       await PinFile.update(
         {
-          pin_status: orderState,
+          pin_status: PinFilePinStatus.failed,
         },
         {
           where: {
@@ -167,8 +167,10 @@ async function placeOrderQueuedFiles() {
           },
         }
       );
+      await sendMarkdown(`Baitech order (${configs.server.name}) failed`, `Place order in crust failed cid(${cid}) after ${configs.crust.orderRetryTimes} times`);
     }
   }
+  return true;
 }
 
 async function placeOrderInCrust(cid: string, retryTimes = 0) {
