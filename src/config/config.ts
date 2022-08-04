@@ -20,6 +20,7 @@ export const configs = {
     ipfsPinAddTimeOut: _.parseInt(getEnv('IPFS_PIN_ADD_TIMEOUT', 1000 * 60 * 60 * 1)),
     addBatchThreadSize: _.parseInt(getEnv('PIN_ADD_THREAD_SIZE', 5)),
     addRetryTimes: _.parseInt(getEnv('IPFS_PIN_ADD_RETRY_TIMES', 3)),
+    thunderAuthSignature: getEnv('IPFS_THUNDER_AUTH_SIGNATURE', ''),
   },
   evolution: {
     schema_table: 'data_migrations',

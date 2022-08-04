@@ -7,7 +7,11 @@ http.defaults.timeout = 5000;
 
 export async function pinLs(host: string, cid: string) {
     try {
-        const result = await http.post(`${host}/api/v0/pin/ls?arg=/ipfs/${cid}`);
+        const result = await http.request({
+            url: `${host}/api/v0/pin/ls?arg=/ipfs/${cid}`,
+            method: 'POST',
+            headers: { Authorization: `Basic ${configs.ipfs.thunderAuthSignature}` },
+        });
         return result;
     } catch (e) {
         logger.error(`Call ipfs pin ls (${host}) failed: ${e.message}`);
