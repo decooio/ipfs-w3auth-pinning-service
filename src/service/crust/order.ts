@@ -142,11 +142,3 @@ export async function getOrderState(api: ApiPromise, cid: string) {
   return null;
 }
 
-export async function getFinalizeBlockNumber(api: ApiPromise) {
-  await api.isReadyOrError;
-  const res = await api.rpc.chain.getHeader();
-  if (res) {
-    return res.number.toNumber();
-  }
-  return null;
-}

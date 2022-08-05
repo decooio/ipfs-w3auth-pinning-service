@@ -8,12 +8,11 @@ const schedule = require('node-schedule');
 const Postgrator = require('postgrator');
 const moment = require('moment');
 const path = require('path');
-import {updatePinObjectStatus, orderStart} from './service/pinning';
+import {updatePinObjectStatus, orderStart, inputExpireFilesToQueued} from './service/pinning';
 import {logger} from './logger';
 import {configs} from './config/config';
 import {batchPinFiles} from "./service/ipfs";
 import {sendMarkdown} from "./common/dingtalkUtils";
-
 const app = express();
 
 app.use(cors());
@@ -37,23 +36,29 @@ postgrator.migrate('max').then((migrations: any) => {
   app.listen(configs.server.port);
 });
 
-schedule.scheduleJob('0 */20 * * * *', () => {
+const pinStatusUpdateJob = schedule.scheduleJob('0 */20 * * * *', () => {
   logger.info('pin status schedule start');
   updatePinObjectStatus()
     .then(() => {
       logger.info('pin status schedule finished');
     })
     .catch((e: Error) => {
-      logger.error(`pin status update err: ${e.message}`);
+      logger.error(`pin status update err: ${e.stack}`);
     });
 });
+pinStatusUpdateJob.invoke();
 
 batchPinFiles().catch((e: Error) => {
-  logger.error(`batch pin file err: ${e.message}`);
+  logger.error(`batch pin file err: ${e.stack}`);
   sendMarkdown('Pin file failed', `Baitech pinner pin add job crushed please check!`);
 });
 
 orderStart().catch((e: Error) => {
-  logger.error(`order status err: ${e.message}`);
+  logger.error(`order status err: ${e.stack}`);
   sendMarkdown('Order file failed', `Baitech pinner order job crushed please check!`);
 });
+
+inputExpireFilesToQueued().catch((e: Error) => {
+  logger.error(`re order expire files err: ${e.stack}`);
+  sendMarkdown('ReOrder file failed', `Reorder expire file failed: ${e.message}`);
+})

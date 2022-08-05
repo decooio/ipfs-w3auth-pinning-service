@@ -35,12 +35,14 @@ export const configs = {
     validFileSize: _.parseInt(getEnv('VALID_FILE_REPLICAS', 30)),
     orderTimeAwait: _.parseInt(getEnv('ORDER_TIME_AWAIT', 3000)),
     orderFailedTimeAwait: _.parseInt(getEnv('ORDER_FAILED_TIME_AWAIT', 60000)),
+    blockNumberForExpireOrder: _.parseInt(getEnv('EXPIRE_ORDER_BLOCK_NUMBER', 10 * 60 * 24 * 30)),
     loopTimeAwait: _.parseInt(getEnv('LOOP_TIME_AWAIT', 2000)),
     checkAmountTimeAwait: _.parseInt(getEnv('CHECK_AMOUNT_TIME_AWAIT', 120000)),
     checkAmountRetryTimes: _.parseInt(getEnv('CHECK_AMOUNT_RETRY_TIMES', 3)),
     orderRetryTimes: _.parseInt(getEnv('ORDER_RETRY_TIMES', 3)),
     minimumAmount: _.parseInt(getEnv('MINIMUM_AMOUNT', 1)),
     transactionTimeout: _.parseInt(getEnv('TRANSACTION_TIMEOUT', 60 * 1000)),
+
   },
   dingtalk: {
     notificationUrl: getEnv('WARNING_URL', ''),

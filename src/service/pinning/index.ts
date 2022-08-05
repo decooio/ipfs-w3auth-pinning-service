@@ -24,6 +24,7 @@ import {Pin, PinStatus} from "../../types/pinObjects";
 import {ApiPromise, WsProvider} from "@polkadot/api";
 import {typesBundleForPolkadot} from "@crustio/type-definitions";
 import {sendMarkdown} from "../../common/dingtalkUtils";
+import exp = require("constants");
 const Sequelize = require('sequelize');
 const {sleep} = require('../../common/commonUtils');
 const pinObjectDao = require('../../dao/pinObjectDao');
@@ -264,4 +265,52 @@ export async function updatePinObjectStatus() {
       }
     }
   }
+}
+
+export async function inputExpireFilesToQueued() {
+    while (true) {
+      try {
+        const api = new ApiPromise({
+          provider: new WsProvider(configs.crust.chainWsUrl),
+          typesBundle: typesBundleForPolkadot,
+        });
+        await api.isReadyOrError;
+        const hash = await api.rpc.chain.getFinalizedHead();
+        const block = await api.rpc.chain.getBlock(hash);
+        const finalizeBlock = block.block.header.number.toNumber();
+        const expireBlock = finalizeBlock + configs.crust.blockNumberForExpireOrder;
+        const expireFiles = await PinFile.findAll({
+          where: {
+            deleted: Deleted.undeleted,
+            pin_status: PinFilePinStatus.pinned,
+            expired_at: {
+              [Op.lt]: expireBlock
+            }
+          },
+          order: [['id', 'asc']],
+          limit: 1000
+        });
+        if (_.isEmpty(expireFiles)) {
+          await sleep(6 * 1000);
+          continue;
+        }
+        for (const f of expireFiles) {
+          const res = await getOrderState(api, f.cid);
+          await PinFile.update(_.isEmpty(res) || res.meaningfulData.expired_at <= expireBlock ? {
+            pin_status: PinFilePinStatus.queued,
+            order_retry_times: 0,
+          } : {
+            expired_at: res.meaningfulData.expired_at
+          },{
+            where: {
+              id: f.id
+            }
+          });
+          await sleep(100);
+        }
+      } catch (e) {
+        await sendMarkdown('Place order expire file failed', `Place order expire file failed(restart 60 seconds): ${e.message}`);
+        await sleep(60 * 1000);
+      }
+    }
 }
