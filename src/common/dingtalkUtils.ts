@@ -33,7 +33,7 @@ export async function sendMarkdown(
                 msgtype: 'markdown',
                 markdown: {
                     title,
-                    text: `${text}(${getEnv('ENV', 'dev')})`,
+                    text: `${text}(${getEnv('NODE_ENV', 'dev')})`,
                 },
             },
         });

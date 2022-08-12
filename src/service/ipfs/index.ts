@@ -13,7 +13,7 @@ export async function batchPinFiles() {
     for (let i = 0; i < configs.ipfs.addBatchThreadSize; i++) {
         threads.push(pinFilesToLocal());
     }
-    await Promise.all([threads]);
+    return Promise.all([threads]);
 }
 
 export async function pinFilesToLocal() {
@@ -73,8 +73,11 @@ export async function pinFilesToLocal() {
                     },
                 });
             }
+            await sleep(300);
+        } else {
+            await sleep(1000 * 60);
         }
-        await sleep(300);
+
     }
 }
 

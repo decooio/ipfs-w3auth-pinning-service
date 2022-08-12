@@ -25,6 +25,7 @@ import {ApiPromise, WsProvider} from "@polkadot/api";
 import {typesBundleForPolkadot} from "@crustio/type-definitions";
 import {sendMarkdown} from "../../common/dingtalkUtils";
 import exp = require("constants");
+import {api} from "../crust/api";
 const Sequelize = require('sequelize');
 const {sleep} = require('../../common/commonUtils');
 const pinObjectDao = require('../../dao/pinObjectDao');
@@ -101,10 +102,6 @@ export async function pinByCid(userId: number, pin: Pin): Promise<PinStatus> {
 }
 
 export async function orderStart() {
-  const api = new ApiPromise({
-    provider: new WsProvider(configs.crust.chainWsUrl),
-    typesBundle: typesBundleForPolkadot,
-  });
   let loopTimeAwait = configs.crust.loopTimeAwait;
   for (;;) {
     try {
@@ -175,10 +172,6 @@ async function placeOrderQueuedFiles(): Promise<boolean> {
 }
 
 async function placeOrderInCrust(cid: string, retryTimes = 0) {
-  const api = new ApiPromise({
-    provider: new WsProvider(configs.crust.chainWsUrl),
-    typesBundle: typesBundleForPolkadot,
-  });
   let pinStatus = PinFilePinStatus.pinning;
   let retryTimeAdd = false;
   try {
@@ -229,10 +222,6 @@ async function placeOrderInCrust(cid: string, retryTimes = 0) {
 }
 
 export async function updatePinObjectStatus() {
-  const api = new ApiPromise({
-    provider: new WsProvider(configs.crust.chainWsUrl),
-    typesBundle: typesBundleForPolkadot,
-  });
   const pinningObjects = await PinFile.findAll({
     where: {pin_status: PinFilePinStatus.pinning, deleted: 0},
   });
@@ -270,10 +259,6 @@ export async function updatePinObjectStatus() {
 export async function inputExpireFilesToQueued() {
     while (true) {
       try {
-        const api = new ApiPromise({
-          provider: new WsProvider(configs.crust.chainWsUrl),
-          typesBundle: typesBundleForPolkadot,
-        });
         await api.isReadyOrError;
         const hash = await api.rpc.chain.getFinalizedHead();
         const block = await api.rpc.chain.getBlock(hash);
@@ -296,7 +281,7 @@ export async function inputExpireFilesToQueued() {
         }
         for (const f of expireFiles) {
           const res = await getOrderState(api, f.cid);
-          await PinFile.update(_.isEmpty(res) || res.meaningfulData.expired_at <= expireBlock ? {
+          await PinFile.update(_.isEmpty(res) ||(res.meaningfulData.expired_at <= expireBlock) ? {
             pin_status: PinFilePinStatus.queued,
             order_retry_times: 0,
           } : {
@@ -309,7 +294,8 @@ export async function inputExpireFilesToQueued() {
           await sleep(100);
         }
       } catch (e) {
-        await sendMarkdown('Place order expire file failed', `Place order expire file failed(restart 60 seconds): ${e.message}`);
+        logger.error(`queued expire file failed ${e.stack}`);
+        await sendMarkdown('queued expire file failed', `queued expire file failed(restart 60 seconds)`);
         await sleep(60 * 1000);
       }
     }
